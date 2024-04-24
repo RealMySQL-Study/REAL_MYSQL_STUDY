@@ -144,12 +144,31 @@ CREATE TABLE tb_member (
 
 ## utf8mb4 문자 집합의 콜레이션
 실제 응용 프로그램의 다국어 지원은 필수적이라 대부분 utf8mb4 문자 집합을 사용할 것이다.  
+콜레이션의 이름에 locale이 포함돼 있는지 여부로 언어에 종속적인 콜레이션과 종속적이지 않은 콜레이션으로 구분할 수 있다.  
+* utf8mb4_0900_ai_ci : 범용
+* utf8mb4_zh_0900_as_cs : 중국어
+* utf8mb4_ja_0900_as_cs : 일본어
 
- 
+등등 ..   
 
+일반적인 범용 응용 프로그램이라면 `utf8mb4_0900_ai_ci`면 충분하다.  
+
+default!!  
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/67637716/9984a03b-51b0-46ac-98dc-3790453fd992)  
 
 ## 비교 방식
 mysql에서 문자열 칼럼을 비교하는 방식은 CHAR와 VARCHAR가 거의 같다.  
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/67637716/8a4a2905-f2f6-4793-b257-f0c4f9e5d53b)  
+
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/67637716/486961e4-0a2c-4769-bcfa-97d6e677de59)  
+
+위 결과를 보면 공백문자가 비교 결과에 영향을 미친다.  
+collation에 따라 공백문자가 영향을 미치는지 아닌지가 다르다.  
+pad_attribute를 보면 no_pad라고 나오는데, 대부분은 pad space이지만 utf8mb4_0900으로 시작하는 콜레이션만 no pad이다.  
+
+
+
+
 
 
 
