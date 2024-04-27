@@ -42,11 +42,49 @@ INSERT INTO TB_ENUM VALUES ('PROCESSING'), ('FAILURE');
   > ```SQL
   > ALTER TABLE TB_ENUM
   > MODIFY FD_ENUM ENUM('PROCESSING', 'FAILURE', 'SUCCESS', 'REFUND')
-  > ,ALGORITHM=COPY;
+  > ,ALGORITHM=INSTATN;
+  > -- ,ALGORITHM=COPY;
   > -- ,ALGORITHM=INPLACE;
   > -- 책에서는 INSTANT 로 되어있는데 그러면 에러가 떴음
-  > -- 
+  > -- 아마도 lower_case_table_names 변수값이 1로 되어있어서 메타데이터를 변경하는 와중에
+  > -- 대소문자를 구분해서 문제가 생긴것 같음.(테이블의 컬럼을 FD_ENUM 으로 변경하고 INSTANT 로 돌렸을때는 됐음)
+  > -- lower_case_table_names 변수는 구축 초기에만 설정할 수 있어서 변경해서 테스트 해보지는 못함
   > ```
+  > 순서 변경이나 중간에 아이템을 추가하려면 COPY 알고리즘에 읽기 잠금까지 필요
 + 
 
 > [단점 참고](https://gompro.postype.com/post/8253823)
+
+
+#### 정렬
+
+ENUM 타입의 컬럼으로 정렬 시 문자열 값이 아닌 매핑된 코드 값으로 정렬됨
+
+ENUM 타입 컬럼으로 정렬하지 않는 것이 좋지만 (문자열값으로)해야한다면 CAST() 함수를 통해 정렬할 수 밖에 없음
+
+CAST() 함수를 사용하면 인덱스를 이용한 정렬을 사용할 수 없을 수도 있음
+
+```SQL
+SELECT FD_ENUM * 1 AS REAL_VALUE
+	, FD_ENUM
+FROM TB_ENUM
+ORDER BY FD_ENUM;
+```
+> ![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/56211e78-110c-4a9c-bb79-a43ab0200f03)
+
+```SQL
+SELECT FD_ENUM * 1 AS REAL_VALUE
+	, FD_ENUM
+FROM TB_ENUM
+ORDER BY CAST(FD_ENUM AS CHAR);
+```
+> ![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/c0a3be8e-691e-49fa-8020-e7b1da7456ea)
+
+
+#### 장점
+
++ 테이블 구조에 정의된 코드 값만 사용할 수 있게 강제한다
++ (레코드 건수가 많아지면)데이터베이스 서버의 디스크 저장 공간의 크기를 줄여줌
+  > 디스크의 데이터는 InnoDB 버퍼풀에 적재되어야 사용할 수 있는데<br>
+  > 디스크의 데이터가 크면 메모리도 많이 필요해진다는 의미임
++ 디스크 사용량이 적으면 백업과 복구 시간을 줄일 수 있음
