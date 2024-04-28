@@ -88,3 +88,101 @@ ORDER BY CAST(FD_ENUM AS CHAR);
   > 디스크의 데이터는 InnoDB 버퍼풀에 적재되어야 사용할 수 있는데<br>
   > 디스크의 데이터가 크면 메모리도 많이 필요해진다는 의미임
 + 디스크 사용량이 적으면 백업과 복구 시간을 줄일 수 있음
+
+<br>
+
+## 15.4.2 SET
+
+SET 타입도 테이블 구조에 정의된 아이템을 정수값으로 매핑해서 저장하는 방식은 똑같음
+
+SET은 하나의 컬럼에 1개 이상의 값을 저장할 수 있음
+
+내부적으로 BIT-OR 연산을 거쳐 1개 이상의 선택된 값을 저장
+
+각 아이템 값에 매핑되는 정수값은 1씩 증가되는 값이 아니라 2n의 값을 갖게 됨
+
+아이템의 멤버 수가 8개 이하면 1바이트의 공간을 사용하고, 9~16개 이면 2바이트를 사용. 최대 8바이트 까지 사용
+
+```sql
+CREATE TABLE TB_SET(
+	FD_SET SET('TENNIS', 'SOCCER', 'GOLF', 'TABLE-TENNIS', 'BASKETBALL', 'BILLIARD')
+);
+-- 여러 값을 저장할 때는 , 로 구분하여 하나의 문자열로 넣으면 됨
+INSERT INTO TB_SET (FD_SET) VALUES ('SOCCER'), ('GOLF,TENNIS');
+
+SELECT * FROM TB_SET;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/a214bb3f-6c43-48e0-8181-0e67ee7ab9e7)
+
+#### 검색과 INDEX 사용
+
+```SQL
+-- 검색 시에 FIND_IN_SET() 함수를 사용
+SELECT * FROM TB_SET WHERE FIND_IN_SET('GOLF', FD_SET);
+```
+
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/746b4ac2-5e49-4e0a-80a5-530342e97567)
+
+```SQL
+-- 검색시 LIKE 도 사용 가능
+SELECT * FROM TB_SET WHERE FD_SET LIKE '%GOLF%';
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/7627758d-118c-4932-bf34-d2af13dee43b)
+
+
+SET 타입 컬럼은 동등비교를 하려면 컬럼에 저장된 순서대로 문자열을 나열해야만 검색 가능
+
+SET 타입 컬럼에 인덱스가 있더라도 FIND_IN_SET 이나 LIKE 를 사용한 쿼리는 INDEX를 사용할 수 없음
+
+```SQL
+SELECT * FROM TB_SET WHERE FD_SET = 'TENNIS,GOLF';
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/6f6057ad-5650-4290-bc98-3603bb95d1ab)
+
+```SQL
+SELECT * FROM TB_SET WHERE FD_SET = 'GOLF,TENNIS';
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/5fa0d377-ce32-4196-9165-a4fda3525c69)
+
+
+만약 SET 타입 컬럼이 특정 값을 포함하고 있는 지를 검색하기 위해 FIND_IN_SET 함수를 자주 사용한다면<br>
+SET타입 컬럼을 정규화해서 별도로 인덱스를 가진 자식 테이블을 생성하는 것이 좋다.
+
+#### 추가 및 수정
+
+ENUM과 마찬가지로 SET도 정의된 아이템 중간에 새로운 아이템을 추가하는 경우 테이블의 읽기 잠금과 리블드 작업이 필요함
+
+```SQL
+ALTER TABLE TB_SET 
+MODIFY FD_SET SET('TENNIS', 'SOCCER', 'GOLF', 'TABLE-TENNIS', 'BASKETBALL', 'e-SPORTS','BILLIARD'),
+ALGORITHM=COPY, LOCK=SHARED;
+```
+
+하지만 마지막에 새로운 아이템을 추가하는 작업은 INSTANT 알고리즘으로 메타정보만 변경하고 즉시 완료됨.
+
+```SQL
+ALTER TABLE TB_SET
+MODIFY FD_SET SET('TENNIS', 'SOCCER', 'GOLF', 'TABLE-TENNIS', 'BASKETBALL','BILLIARD', 'e-SPORTS'),
+ALGORITHM=INSTANT;
+```
+
+하지만 아이템의 개수가 8개를 넘어서 9개로 바뀔 때(저장공간의 크기가 바뀔때) 읽기 잠금과 테이블 리빌드가 필요
+
+```SQL
+ALTER TABLE TB_SET
+MODIFY FD_SET SET('TENNIS', 'SOCCER', 'GOLF', 'TABLE-TENNIS'
+				, 'BASKETBALL','BILLIARD', 'e-SPORTS', 'SCUBA-DIVING'
+                , 'SWIMMING'),
+ALGORITHM=INSTANT;
+
+/*
+11:21:04 ALTER TABLE TB_SET MODIFY FD_SET SET('TENNIS', 'SOCCER', 'GOLF', 'TABLE-TENNIS', 'BASKETBALL','BILLIARD', 'e-SPORTS', 'SCUBA-DIVING', 'SWIMMING'), ALGORITHM=INSTANT
+Error Code: 1846. ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY/INPLACE.	0.016 sec
+*/
+
+ALTER TABLE TB_SET
+MODIFY FD_SET SET('TENNIS', 'SOCCER', 'GOLF', 'TABLE-TENNIS'
+				, 'BASKETBALL','BILLIARD', 'e-SPORTS', 'SCUBA-DIVING'
+                , 'SWIMMING'),
+ALGORITHM=COPY, LOCK=SHARED;
+```
