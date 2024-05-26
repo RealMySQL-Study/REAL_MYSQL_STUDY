@@ -162,10 +162,24 @@ ORDER BY T.TABLE_SCHEMA, T.TABLE_NAME;
 
 ### I/O 요청이 많은 테이블 목록 확인
 ```SQL
+SELECT * FROM SYS.IO_GLOBAL_BY_FILE_BY_BYTES
+WHERE FILE LIKE '%ibd';
 ```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/094b9084-fef4-4b5e-be43-83c349f975dd)
+
 
 ### 테이블별 작업량 통계 확인
 ```SQL
+SELECT TABLE_SCHEMA,
+	TABLE_NAME,
+	ROWS_FETCHED,
+    ROWS_INSERTED,
+    ROWS_UPDATED,
+    ROWS_DELETED,
+    IO_READ,
+    IO_WRITE
+FROM SYS.SCHEMA_TABLE_STATISTICS
+WHERE TABLE_SCHEMA NOT IN ('mysql', 'performance_schema','sys');
 ```
 
 ### 테이블의 Auto-Increment 컬럼 사용량 확인
