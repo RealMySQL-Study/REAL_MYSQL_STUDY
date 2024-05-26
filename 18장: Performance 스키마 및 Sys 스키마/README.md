@@ -16,61 +16,199 @@ Performance 스키마에 저장된 데이터를 참조하기 때문에 Performan
 
 ### 호스트 접속이력 확인
 
+```SQL
+SELECT * FROM PERFORMANCE_SCHEMA.HOSTS;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/32b099fb-bace-46c3-b28d-fa4ae19ee4d1)
+
+호스트가 NULL인 것들은 내부 스레드 이거나 연결 시 인증 실패한 것들
+
+```SQL
+SELECT HOST, CURRENT_CONNECTIONS
+FROM PERFORMANCE_SCHEMA.HOSTS
+WHERE CURRENT_CONNECTIONS > 0 AND HOST NOT IN ('NULL', '127.0.0.1')
+ORDER BY HOST;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/eb2b9d01-0167-412d-b0fa-0b348053451e)
+
 
 ### 미사용 DB 계정 확인
+
+서버 구동 이후로 사용되지 않은 DB 계정을 확인 할 때
+```SQL
+SELECT DISTINCT 
+	M_U.USER, 
+    M_U.HOST
+FROM MYSQL.USER M_U
+LEFT JOIN PERFORMANCE_SCHEMA.ACCOUNTS PS_A
+	ON M_U.USER = PS_A.USER 
+    AND PS_A.HOST = M_U.HOST
+LEFT JOIN INFORMATION_SCHEMA.VIEWS IS_V
+	ON IS_V.DEFINER = CONCAT(M_U.USER, '@', M_U.HOST)
+    AND IS_V.SECURITY_TYPE = 'DEFINER'
+LEFT JOIN INFORMATION_SCHEMA.ROUTINES IS_R 
+	ON IS_R.DEFINER = CONCAT(M_U.USER, '@', M_U.HOST)
+    AND IS_R.SECURITY_TYPE = 'DEFINER'
+LEFT JOIN INFORMATION_SCHEMA.EVENTS IS_E 
+	ON IS_E.DEFINER = CONCAT(M_U.USER, '@', M_U.HOST)
+LEFT JOIN INFORMATION_SCHEMA.TRIGGERS IS_T
+	ON IS_T.DEFINER = CONCAT(M_U.USER, '@', M_U.HOST)
+WHERE PS_A.USER IS NULL
+	AND IS_V.DEFINER IS NULL
+    AND IS_R.DEFINER IS NULL
+    AND IS_E.DEFINER IS NULL
+    AND IS_T.DEFINER IS NULL
+ORDER BY M_U.USER, M_U.HOST;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/8e283c35-5efd-43ca-b63d-5d26be5d517c)
 
 
 ### MySQL 총 메모리 사용량 확인
 
+```SQL
+SELECT * FROM SYS.MEMORY_GLOBAL_TOTAL;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/146c41a0-dbb5-4306-a7d3-1a1f0354ba56)
+
+MySQL 서버에 할당된 메모리의 전체 크기를 확인
+
+사용중인 메모리보다 클 수 있음
+
 
 ### 스레드별 메모리 사용량 확인
+```SQL
+SELECT THREAD_ID, USER, CURRENT_ALLOCATED
+FROM SYS.MEMORY_BY_THREAD_BY_CURRENT_BYTES
+LIMIT 10;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/d9a42e6e-105d-4e22-a750-6d87198579e1)
+
+``SYS.MEMORY_BY_THREAD_BY_CURRENT_BYTES`` 뷰는 기본적으로 ``CURRENT_ALLOCATED`` 값 기준으로 내림차순으로 정렬
+
+```SQL
+-- 특정 스레드에 대해 구체적인 메모리 할당 내역을 확인 할 때
+SELECT THREAD_ID,
+	EVENT_NAME,
+    SYS.FORMAT_BYTES(CURRENT_NUMBER_OF_BYTES_USED) AS CURRENT_ALLOCATED
+FROM PERFORMANCE_SCHEMA.MEMORY_SUMMARY_BY_THREAD_BY_EVENT_NAME
+WHERE THREAD_ID = 36
+ORDER BY CURRENT_NUMBER_OF_BYTES_USED DESC;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/244c730e-e3c8-45f5-9084-64435163cb74)
+
+여기서 ``THREAD_ID``는 ``SHOW PROCESSLIST``의 `ID`` 와는 다름
+
+```SQL
+-- 아래와 같은 방법으로 PROCESSLIST의 ID로 THREAD_ID를 찾을 수 있음
+SELECT THREAD_ID, PROCESSLIST_ID
+FROM PERFORMANCE_SCHEMA.THREADS
+WHERE PROCESSLIST_ID = 5;
+
+SELECT SYS.PS_THREAD_ID(5);
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/64cc51ba-0ff0-4d44-ac89-d53d40939745)
+
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/b79f9083-d78c-4077-a601-f4e7b0784b86)
 
 
 ### 미사용 인덱스 확인
+```SQL
+SELECT *
+FROM SYS.SCHEMA_UNUSED_INDEXES;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/73b5610e-e142-423b-b236-ee97dfeb60f0)
 
+사용하지 않는 인덱스라면 제거하는 것이 좋음
+
+제거할 때는 안전하게 인덱스를 ``INVISIBLE``상태로 만들어서 인정 기간동안 실제로 사용하지 않는지 확인 후 지우는 것이 좋음
+
+```SQL
+ALTER TABLE USERS ALTER INDEX IX_NAME INVISIBLE;
+
+SELECT TABLE_NAME, 
+	INDEX_NAME,
+    IS_VISIBLE
+FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA = ''
+	AND TABLE_NAME = ''
+    AND INDEX_NAME = '';
+```
 
 ### 중복된 인덱스 확인
+```SQL
+-- 인덱스 구성이 같거나, 한 인덱스 구성이 다른 인덱스 구성에 포함 될때
+SELECT * FROM SYS.SCHEMA_REDUNDANT_INDEXES
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/8069141c-b01a-46ec-8319-4bcff2d8151c)
 
 
 ### 변경이 없는 테이블 목록 확인
+```SQL
+SELECT T.TABLE_SCHEMA,
+	T.TABLE_NAME,
+    T.TABLE_ROWS,
+    TIO.COUNT_READ,
+    TIO.COUNT_WRITE
+FROM INFORMATION_SCHEMA.TABLES AS T
+JOIN PERFORMANCE_SCHEMA.TABLE_IO_WAITS_SUMMARY_BY_TABLE AS TIO
+	ON TIO.OBJECT_SCHEMA = T.TABLE_SCHEMA
+    AND TIO.OBJECT_NAME = T.TABLE_NAME
+WHERE T.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'sys')
+	AND TIO.COUNT_WRITE = 0
+ORDER BY T.TABLE_SCHEMA, T.TABLE_NAME;
+```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/39dc258d-fac4-4881-b9bf-21f277ffadfa)
 
 
 ### I/O 요청이 많은 테이블 목록 확인
-
+```SQL
+```
 
 ### 테이블별 작업량 통계 확인
-
+```SQL
+```
 
 ### 테이블의 Auto-Increment 컬럼 사용량 확인
-
+```SQL
+```
 
 ### 풀 테이블 스캔 쿼리 확인
-
+```SQL
+```
 
 ### 자주 실행되는 쿼리 목록 확인
-
+```SQL
+```
 
 ### 실행 시간이 긴 쿼리 목록 확인
-
+```SQL
+```
 
 ### 정렬 작업을 수행한 쿼리 목록 확인
-
+```SQL
+```
 
 ### 임시 테이블을 생성하는 쿼리 목록 확인
-
+```SQL
+```
 
 ### 트랜잭션이 활성 상태인 커넥션에서 실행한 쿼리 내역확인
-
+```SQL
+```
 
 ### 쿼리 프로파일링
-
+```SQL
+```
 
 ### ALTER 작업 진행률 확인
-
+```SQL
+```
 
 ### 메타데이터락 대기 확인
-
+```SQL
+```
 
 ### 데이터 락 대기 확인
-
+```SQL
+```
 
