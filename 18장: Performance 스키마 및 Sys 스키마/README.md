@@ -184,27 +184,69 @@ WHERE TABLE_SCHEMA NOT IN ('mysql', 'performance_schema','sys');
 
 ### 테이블의 Auto-Increment 컬럼 사용량 확인
 ```SQL
+SELECT TABLE_SCHEMA,
+	TABLE_NAME,
+    COLUMN_NAME,
+    AUTO_INCREMENT AS CURRENT_VALUE,
+    MAX_VALUE,
+    ROUND(AUTO_INCREMENT_RATIO * 100, 2) AS USAGE_RATIO
+FROM SYS.SCHEMA_AUTO_INCREMENT_COLUMNS;
 ```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/de0dbc55-9dbf-4277-b62c-8ca86c87991e)
+
 
 ### 풀 테이블 스캔 쿼리 확인
 ```SQL
+SELECT DB,
+	QUERY,
+	EXEC_COUNT,
+    SYS.FORMAT_TIME(TOTAL_LATENCY) AS FORMATTED_TOTAL_LATENCY,
+    ROWS_SENT_AVG,
+    ROWS_EXAMINED_AVG,
+    LAST_SEEN
+FROM SYS.X$STATEMENTS_WITH_FULL_TABLE_SCANS
+ORDER BY TOTAL_LATENCY DESC;
 ```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/811a573d-da74-403d-92af-96099ec4098e)
+
 
 ### 자주 실행되는 쿼리 목록 확인
 ```SQL
+SELECT DB,
+	EXEC_COUNT,
+    QUERY
+FROM SYS.STATEMENT_ANALYSIS
+ORDER BY EXEC_COUNT DESC;
 ```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/5b8be813-77f2-42b3-a9be-de4930ab2fc7)
+
 
 ### 실행 시간이 긴 쿼리 목록 확인
 ```SQL
+SELECT QUERY,
+	EXEC_COUNT,
+    SYS.FORMAT_TIME(AVG_LATENCY) AS FORMATTED_AVG_LATENCY,
+    ROWS_SENT_AVG,
+    ROWS_EXAMINED_AVG,
+    LAST_SEEN
+FROM SYS.X$STATEMENT_ANALYSIS
+ORDER BY AVG_LATENCY DESC;
 ```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/b52d5132-319c-4c37-b9e5-24c0bcbd5ff5)
+
 
 ### 정렬 작업을 수행한 쿼리 목록 확인
 ```SQL
+SELECT * FROM SYS.STATEMENTS_WITH_SORTING ORDER BY LAST_SEEN DESC LIMIT 1;
 ```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/b5665c50-109b-4ed3-bf47-f1e189c62e24)
 
 ### 임시 테이블을 생성하는 쿼리 목록 확인
 ```SQL
+SELECT * FROM SYS.STATEMENTS_WITH_TEMP_TABLES LIMIT 10;
 ```
+![image](https://github.com/RealMySQL-Study/REAL_MYSQL_STUDY/assets/92290312/ce743ab2-9e9a-4df8-9136-803c3aa0988c)
+
 
 ### 트랜잭션이 활성 상태인 커넥션에서 실행한 쿼리 내역확인
 ```SQL
